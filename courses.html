@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CodeCraftHub Dashboard</title>
+<title>CodeCraftHub: Your Learning Management Platform</title>
 <style>
   /* Theme colors: purple primary, amber success, red delete */
   :root { --primary:#8B5CF6; --success:#F59E0B; --delete:#EF4444; --bg:#F5F3FF; --text:#1F2937; --muted:#6B7280; }
@@ -20,9 +20,9 @@
   textarea { min-height:70px; resize:vertical; }
   button { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; color:#fff; font-size:14px; }
   button:hover { opacity:.9; }
-  .btn-primary { background:var(--primary); }
-  .btn-edit { background:var(--success); }
-  .btn-delete { background:var(--delete); }
+  .btn-primary { background-color:#8B5CF6; color:#fff; }
+  .btn-success { background-color:#F59E0B; color:#fff; }
+  .btn-delete { background-color:#EF4444; color:#fff; }
   .btn-cancel { background:var(--muted); }
   .message { padding:10px; border-radius:6px; margin-bottom:15px; display:none; }
   .message.success { display:block; background:#FEF3C7; color:#92400E; border:1px solid var(--success); }
@@ -188,7 +188,7 @@ function renderCourses(courses) {
       <p><strong>Target:</strong> ${escapeHtml(c.target_date)}</p>
       <p><strong>Created:</strong> ${formatDate(c.created_at)}</p>
       <div class="actions">
-        <button class="btn-edit" onclick="openEdit(${c.id})">Edit</button>
+        <button class="btn-success" onclick="openEdit(${c.id})">Edit</button>
         <button class="btn-delete" onclick="deleteCourse(${c.id})">Remove</button>
       </div>
     </div>`).join("");
