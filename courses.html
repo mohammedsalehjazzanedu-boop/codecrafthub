@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeCraftHub Dashboard</title>
+<style>
+  /* Theme colors: purple primary, amber success, red delete */
+  :root { --primary:#8B5CF6; --success:#F59E0B; --delete:#EF4444; --bg:#F5F3FF; --text:#1F2937; --muted:#6B7280; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); padding:20px; }
+  .container { max-width:1000px; margin:0 auto; }
+  header { background:var(--primary); color:#fff; padding:20px; border-radius:10px; text-align:center; margin-bottom:20px; }
+  .card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin-bottom:20px; }
+  h2 { margin-bottom:15px; color:var(--primary); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
+  .full { grid-column:1 / -1; }
+  label { display:block; font-size:14px; margin-bottom:4px; font-weight:bold; }
+  input, select, textarea { width:100%; padding:8px; border:1px solid #D1D5DB; border-radius:6px; font-size:14px; }
+  textarea { min-height:70px; resize:vertical; }
+  button { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; color:#fff; font-size:14px; }
+  button:hover { opacity:.9; }
+  .btn-primary { background:var(--primary); }
+  .btn-edit { background:var(--success); }
+  .btn-delete { background:var(--delete); }
+  .btn-cancel { background:var(--muted); }
+  .message { padding:10px; border-radius:6px; margin-bottom:15px; display:none; }
+  .message.success { display:block; background:#FEF3C7; color:#92400E; border:1px solid var(--success); }
+  .message.error { display:block; background:#FEE2E2; color:#991B1B; border:1px solid var(--delete); }
+  .spinner { display:none; margin:20px auto; width:36px; height:36px; border:4px solid #E5E7EB; border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .courses { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:15px; }
+  .course { border:1px solid #E5E7EB; border-left:5px solid var(--primary); border-radius:8px; padding:15px; }
+  .course h3 { margin-bottom:6px; }
+  .course p { font-size:14px; color:var(--muted); margin-bottom:6px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:12px; color:#fff; margin-bottom:8px; }
+  .badge.not-started { background:var(--muted); }
+  .badge.in-progress { background:var(--primary); }
+  .badge.completed { background:var(--success); }
+  .actions { display:flex; gap:8px; margin-top:10px; }
+  .empty { text-align:center; color:var(--muted); }
+  .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); align-items:center; justify-content:center; padding:20px; }
+  .modal.open { display:flex; }
+  .modal .card { width:100%; max-width:500px; margin:0; }
+  /* Responsive layout for mobile */
+  @media (max-width:600px) { header h1 { font-size:20px; } .actions { flex-direction:column; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header><h1>CodeCraftHub: Your Learning Management Platform</h1></header>
+
+  <div id="message" class="message"></div>
+
+  <!-- Add Course form -->
+  <div class="card">
+    <h2>Add New Course</h2>
+    <form id="addForm">
+      <div class="form-grid">
+        <div><label>Course Name *</label><input id="add-name" type="text"></div>
+        <div><label>Target Date *</label><input id="add-target_date" type="date"></div>
+        <div><label>Status *</label>
+          <select id="add-status">
+            <option>Not Started</option><option>In Progress</option><option>Completed</option>
+          </select>
+        </div>
+        <div class="full"><label>Description *</label><textarea id="add-description"></textarea></div>
+        <div class="full"><button type="submit" class="btn-primary">Add Course</button></div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Course list -->
+  <div class="card">
+    <h2>My Courses</h2>
+    <div id="spinner" class="spinner"></div>
+    <div id="courseList" class="courses"></div>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div id="editModal" class="modal">
+  <div class="card">
+    <h2>Edit Course</h2>
+    <form id="editForm">
+      <input id="edit-id" type="hidden">
+      <div class="form-grid">
+        <div class="full"><label>Course Name *</label><input id="edit-name" type="text"></div>
+        <div><label>Target Date *</label><input id="edit-target_date" type="date"></div>
+        <div><label>Status *</label>
+          <select id="edit-status">
+            <option>Not Started</option><option>In Progress</option><option>Completed</option>
+          </select>
+        </div>
+        <div class="full"><label>Description *</label><textarea id="edit-description"></textarea></div>
+        <div class="full actions">
+          <button type="submit" class="btn-primary">Save Changes</button>
+          <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Base API URL: the Flask backend (http://localhost:5000) serves this page,
+// so the API is on the same address: /api/courses
+const API_URL = "/api/courses";
+const FIELDS = ["name", "description", "target_date", "status"];
+
+const messageBox = document.getElementById("message");
+const spinner = document.getElementById("spinner");
+const courseList = document.getElementById("courseList");
+
+// Show a success or error message for a few seconds
+function showMessage(text, type) {
+  messageBox.textContent = text;
+  messageBox.className = "message " + type;
+  clearTimeout(showMessage.timer);
+  showMessage.timer = setTimeout(() => (messageBox.className = "message"), 4000);
+}
+
+// Show or hide the loading spinner
+function showLoading(isLoading) {
+  spinner.style.display = isLoading ? "block" : "none";
+}
+
+// Make text safe to put inside HTML
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Format the created_at timestamp nicely
+function formatDate(iso) {
+  return new Date(iso).toLocaleString();
+}
+
+// Send a request to the API and return the JSON response (throws on error)
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+// Read form values (prefix is "add" or "edit")
+function getFormData(prefix) {
+  const course = {};
+  FIELDS.forEach((f) => (course[f] = document.getElementById(prefix + "-" + f).value.trim()));
+  return course;
+}
+
+// Check all required fields are filled before sending
+function validate(course) {
+  for (const f of FIELDS) {
+    if (!course[f]) return "Please fill in all required fields.";
+  }
+  return null;
+}
+
+// READ: load and display all courses
+async function loadCourses() {
+  showLoading(true);
+  try {
+    const courses = await apiRequest(API_URL);
+    renderCourses(courses);
+  } catch (error) {
+    courseList.innerHTML = '<p class="empty">Could not load courses.</p>';
+    showMessage("Error loading courses: " + error.message, "error");
+  } finally {
+    showLoading(false);
+  }
+}
+
+// Draw the course cards
+function renderCourses(courses) {
+  if (courses.length === 0) {
+    courseList.innerHTML = '<p class="empty">No courses yet. Add your first course above!</p>';
+    return;
+  }
+  courseList.innerHTML = courses.map((c) => `
+    <div class="course">
+      <h3>${escapeHtml(c.name)}</h3>
+      <span class="badge ${c.status.toLowerCase().replace(" ", "-")}">${escapeHtml(c.status)}</span>
+      <p>${escapeHtml(c.description)}</p>
+      <p><strong>Target:</strong> ${escapeHtml(c.target_date)}</p>
+      <p><strong>Created:</strong> ${formatDate(c.created_at)}</p>
+      <div class="actions">
+        <button class="btn-edit" onclick="openEdit(${c.id})">Edit</button>
+        <button class="btn-delete" onclick="deleteCourse(${c.id})">Remove</button>
+      </div>
+    </div>`).join("");
+}
+
+// CREATE: add a new course
+document.getElementById("addForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const course = getFormData("add");
+  const error = validate(course);
+  if (error) return showMessage(error, "error");
+
+  showLoading(true);
+  try {
+    await apiRequest(API_URL, { method: "POST", body: JSON.stringify(course) });
+    event.target.reset();
+    showMessage("Course added successfully!", "success");
+    loadCourses();
+  } catch (err) {
+    showMessage("Error adding course: " + err.message, "error");
+    showLoading(false);
+  }
+});
+
+// Open the edit modal filled with the course data
+async function openEdit(id) {
+  try {
+    const course = await apiRequest(API_URL + "/" + id);
+    document.getElementById("edit-id").value = course.id;
+    FIELDS.forEach((f) => (document.getElementById("edit-" + f).value = course[f]));
+    document.getElementById("editModal").classList.add("open");
+  } catch (err) {
+    showMessage("Error loading course: " + err.message, "error");
+  }
+}
+
+function closeModal() {
+  document.getElementById("editModal").classList.remove("open");
+}
+
+// UPDATE: save the edited course
+document.getElementById("editForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = document.getElementById("edit-id").value;
+  const course = getFormData("edit");
+  const error = validate(course);
+  if (error) return showMessage(error, "error");
+
+  showLoading(true);
+  try {
+    await apiRequest(API_URL + "/" + id, { method: "PUT", body: JSON.stringify(course) });
+    closeModal();
+    showMessage("Course updated successfully!", "success");
+    loadCourses();
+  } catch (err) {
+    showMessage("Error updating course: " + err.message, "error");
+    showLoading(false);
+  }
+});
+
+// DELETE: remove a course after confirmation
+async function deleteCourse(id) {
+  if (!confirm("Are you sure you want to delete this course?")) return;
+  showLoading(true);
+  try {
+    await apiRequest(API_URL + "/" + id, { method: "DELETE" });
+    showMessage("Course deleted successfully!", "success");
+    loadCourses();
+  } catch (err) {
+    showMessage("Error deleting course: " + err.message, "error");
+    showLoading(false);
+  }
+}
+
+// Load courses when the page opens
+loadCourses();
+</script>
+</body>
+</html>

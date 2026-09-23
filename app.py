@@ -1,7 +1,7 @@
 # CodeCraftHub - simple Flask API to track courses
 import json, os
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 app = Flask(__name__)
 FILE = "courses.json"
@@ -108,9 +108,13 @@ def delete_course(id):
     save(courses)
     return jsonify({"message": "Course deleted"})
 
+@app.route("/")
+def home():
+    return send_from_directory(".", "courses.html")
+
 if __name__ == "__main__":
     load()
     print("CodeCraftHub API is starting...")
     print("Data will be stored in:", os.path.abspath(FILE))
     print("API will be available at: http://localhost:5000")
-    app.run(port=5000)
+    app.run(host="0.0.0.0", port=5000)
